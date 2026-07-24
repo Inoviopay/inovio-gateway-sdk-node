@@ -101,6 +101,13 @@ for (const fx of fixtures) {
       if (op === 'sale') result = await client.sale(buildRequest(fx.request));
       else if (op === 'authorize') result = await client.authorize(buildRequest(fx.request));
       else if (op === 'status') result = await client.status(Refs.order(fx.request.orderRef));
+      else if (op === 'captureLineItem') {
+        result = await client.captureLineItem(
+          Refs.order(fx.request.orderRef),
+          Refs.lineItem(fx.request.lineItemRef),
+          Money.of(fx.request.amount.amount, fx.request.amount.currency)
+        );
+      }
       else throw new Error(`unhandled fixture operation: ${op}`);
     } catch (e) {
       thrown = e;

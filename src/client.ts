@@ -172,14 +172,37 @@ export class InovioClient {
     return toTransactionResult(await this.call(REQUEST_ACTION.CCCAPTURE, p));
   }
 
-  /** CCCAPTURE against a single line item. */
-  async captureLineItem(item: LineItemRef, amount?: Money): Promise<TransactionResult> {
-    const p: Record<string, string> = { REQUEST_REF_PO_LI_ID: item.poLiId };
-    if (amount) {
-      p.LI_VALUE_1 = amount.toWire();
-      p.LI_COUNT_1 = '1';
-      p.REQUEST_CURRENCY = amount.currency;
+  /**
+   * CCCAPTURE against a single line item.
+   *
+   * Per spec §5.5.6 the gateway requires the PARENT ORDER and an amount
+   * alongside the line-item id — sending `REQUEST_REF_PO_LI_ID` alone is
+   * rejected with API 113 "Invalid Data". `LineItemRef` does not carry its
+   * order, so both must be passed. Verified against the live T1 gateway.
+   *
+   * @param order the order the line item belongs to (required by the gateway)
+   * @param item  the line item to capture, from `result.lineItemRefs`
+   * @param amount required — the gateway rejects a line-item capture without it
+   */
+  async captureLineItem(
+    order: OrderRef,
+    item: LineItemRef,
+    amount: Money
+  ): Promise<TransactionResult> {
+    if (!amount) {
+      throw new ValidationError(
+        'captureLineItem requires an amount — the gateway rejects a line-item ' +
+          'capture without LI_VALUE_1 (spec §5.5.6)',
+        { refField: 'LI_VALUE_1' }
+      );
     }
+    const p: Record<string, string> = {
+      REQUEST_REF_PO_ID: order.poId,
+      REQUEST_REF_PO_LI_ID: item.poLiId,
+      LI_VALUE_1: amount.toWire(),
+      LI_COUNT_1: '1',
+      REQUEST_CURRENCY: amount.currency,
+    };
     return toTransactionResult(await this.call(REQUEST_ACTION.CCCAPTURE, p));
   }
 

@@ -1,7 +1,7 @@
 {
   "name": "@inovio/gateway-sdk",
   "version": "0.1.0-alpha.0",
-  "description": "Inovio Gateway Payments Service SDK (Node/TypeScript) — reference implementation",
+  "description": "Inovio Gateway Payments Service SDK (Node/TypeScript) \u2014 reference implementation",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -13,7 +13,8 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "examples"
   ],
   "engines": {
     "node": ">=18"
@@ -23,7 +24,8 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --test test/*.test.mjs",
-    "conformance": "node --test test/conformance.test.mjs"
+    "conformance": "node --test test/conformance.test.mjs",
+    "examples": "node examples/run-all.mjs"
   },
   "license": "UNLICENSED",
   "private": true,
