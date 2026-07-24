@@ -1,6 +1,6 @@
 # Inovio Gateway SDK — Node / TypeScript
 
-Reference implementation (**W1** in [`../PLAN.md`](../PLAN.md)). This SDK defines the
+Reference implementation (**W1** of the internal SDK plan). This SDK defines the
 canonical method surface, naming, and conformance fixtures that the PHP, Python
 and Java ports must match.
 
@@ -12,7 +12,7 @@ and Java ports must match.
 
 ```bash
 npm install
-npm run generate    # regenerate enums from ../spec/spec-enums.json
+npm run generate    # regenerate enums from spec/spec-enums.json
 npm run build
 npm test            # 34 tests: 18 shared conformance + 16 unit
 ```
@@ -129,21 +129,42 @@ extension (PLAN.md §1).
 ## Enums are generated, not hand-written
 
 `src/enums/generated.ts` is produced by `npm run generate` from
-`../spec/spec-enums.json` (196 values extracted from the v4.14 PDF). Do not edit
+`spec/spec-enums.json` (196 values extracted from the v4.14 PDF). Do not edit
 it. This is decision **D1** — one artifact drives all five languages so the
 appendices cannot drift apart.
 
 ⚠️ The `retryable` / `terminal` / `stopRecurring` and AVS/CVV classifications are
 **derived by this project, not stated in the spec**. They drive partner dunning
-and risk logic — see [`../spec/README.md`](../spec/README.md) before relying on
+and risk logic — see [`spec/README.md`](spec/README.md) before relying on
 them. In particular, AVS `partial` (street matches but postal does not, etc.) is
 a *merchant risk-policy* decision; the SDK reports the classification and
 deliberately does not decide for you.
 
+## Vendored spec artifacts
+
+This repo **stands alone**: `spec/spec-enums.json` and
+`spec/conformance-fixtures.json` are committed copies, so a fresh clone builds,
+tests and regenerates with no sibling checkout, submodule or network fetch.
+
+They are not the editable source — they are produced upstream in the internal
+`inoviov2` workspace (`api-sdk/spec/`), where the extraction pipeline and its
+validator live. To pull an upstream change in:
+
+```bash
+./scripts/sync-spec.sh /path/to/inoviov2/api-sdk/spec
+```
+
+Then regenerate the enums, run the suite, and commit the spec change together
+with the generated code it produces.
+
+**This is a coordinated change.** The other Inovio SDK repos vendor the same two
+files; if they are not synced in step, the SDKs silently stop agreeing — which
+is exactly what the shared conformance corpus exists to prevent.
+
 ## Conformance
 
 `test/conformance.test.mjs` runs the shared corpus in
-`../spec/conformance-fixtures.json`. Every language SDK runs these same fixtures
+`spec/conformance-fixtures.json`. Every language SDK runs these same fixtures
 and must produce the same typed result. A fixture change is a coordinated change
 across all five SDKs.
 

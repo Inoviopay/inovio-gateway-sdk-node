@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Generate src/enums/generated.ts from ../spec/spec-enums.json.
+ * Generate src/enums/generated.ts from this repo's spec/spec-enums.json.
  *
  * This is decision D1 in PLAN.md §6: enums and their classifiers come from one
  * machine-readable spec artifact, not hand-copied per language. Every SDK runs
@@ -13,7 +13,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const SPEC = resolve(here, '../../spec/spec-enums.json');
+const SPEC = resolve(here, '../spec/spec-enums.json');
 const OUT = resolve(here, '../src/enums/generated.ts');
 
 const spec = JSON.parse(readFileSync(SPEC, 'utf8'));
@@ -22,12 +22,12 @@ const { appendices: A, apiVersion } = spec;
 const q = (s) => JSON.stringify(s);
 
 let out = `// GENERATED FILE — DO NOT EDIT.
-// Source: Inovio Gateway Payments Service API v${apiVersion} (api-sdk/spec/spec-enums.json)
+// Source: Inovio Gateway Payments Service API v${apiVersion} (spec/spec-enums.json)
 // Regenerate: npm run generate
 //
 // Classifiers (retryable/terminal/stopRecurring, AVS/CVV classification, and
 // the API-code -> exception mapping) are DERIVED by the SDK project, not stated
-// in the spec. See api-sdk/spec/README.md.
+// in the spec. See spec/README.md.
 
 `;
 

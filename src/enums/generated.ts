@@ -1,10 +1,10 @@
 // GENERATED FILE — DO NOT EDIT.
-// Source: Inovio Gateway Payments Service API v4.14 (api-sdk/spec/spec-enums.json)
+// Source: Inovio Gateway Payments Service API v4.14 (spec/spec-enums.json)
 // Regenerate: npm run generate
 //
 // Classifiers (retryable/terminal/stopRecurring, AVS/CVV classification, and
 // the API-code -> exception mapping) are DERIVED by the SDK project, not stated
-// in the spec. See api-sdk/spec/README.md.
+// in the spec. See spec/README.md.
 
 /** Appendix B — the master transaction lifecycle (5 states). */
 export const TRANSACTION_STATUS = {

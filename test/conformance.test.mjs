@@ -1,7 +1,7 @@
 /**
  * Cross-language conformance suite.
  *
- * Runs the shared fixtures in ../../spec/conformance-fixtures.json against a
+ * Runs the shared fixtures in this repo's spec/conformance-fixtures.json against a
  * mocked transport. Every SDK (Node, PHP, Python, Java) runs this same corpus
  * and must produce the same typed result — that is the mechanism keeping five
  * implementations honest (PLAN.md §5).
@@ -22,7 +22,7 @@ import {
 
 const here = dirname(fileURLToPath(import.meta.url));
 const { fixtures } = JSON.parse(
-  readFileSync(resolve(here, '../../spec/conformance-fixtures.json'), 'utf8')
+  readFileSync(resolve(here, '../spec/conformance-fixtures.json'), 'utf8')
 );
 
 /** Captures the outgoing params and replays a canned response. */
