@@ -1,0 +1,21 @@
+{
+  "name": "@inovio/gateway-sdk",
+  "version": "0.1.0-alpha.0",
+  "description": "Inovio Gateway Payments Service SDK (Node/TypeScript) — reference implementation",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "files": ["dist", "README.md"],
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "generate": "node scripts/generate-enums.mjs",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test test/*.test.mjs",
+    "conformance": "node --test test/conformance.test.mjs"
+  },
+  "license": "UNLICENSED",
+  "private": true,
+  "devDependencies": { "typescript": "^5.5.4" }
+}
