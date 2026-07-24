@@ -118,13 +118,12 @@ Declared but not implemented (they fill existing seams, no breaking change):
 ACH, EU direct debit, Boleto/Pix/PagoEfectivo, wallets, subscriptions, disputes,
 `webhooks.parse`.
 
-## PCI note
+## Where the card number goes
 
-`tokenize()` is a **server-side** call — the PAN passes through your server, so
-you remain in PCI scope. The low-scope path is the browser Hosted Fields client
-(**W-client**), which tokenizes without the PAN reaching your infrastructure.
-That track is not built yet and is blocked on the client-side object-model
-extension (PLAN.md §1).
+`tokenize()` is a **server-side** call — the card number passes through your
+server. The browser Hosted Fields client (**W-client**) tokenizes the card in
+the cardholder's browser instead, so the number does not reach your server.
+That track is not built yet.
 
 ## Enums are generated, not hand-written
 
@@ -172,8 +171,7 @@ BIN metadata (`brand`, `bank`, `country`, ...) is best-effort: the service
 returns those keys **empty** when the BIN is not in its lookup table, and the
 SDK normalizes blanks to null/undefined so you can test for presence.
 
-⚠️ This is a **server-side** call — the PAN passes through your infrastructure,
-so you remain in PCI scope. The low-scope path is the browser Hosted Fields
+⚠️ This is a **server-side** call — the PAN passes through your the card number passes through your server. The browser Hosted Fields client keeps it in the cardholder's browser
 client, which is not built yet.
 
 ## Vendored spec artifacts

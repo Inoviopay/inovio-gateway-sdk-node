@@ -10,7 +10,7 @@
  * that adding a rail later fills a seam instead of reshaping `sale()`.
  */
 
-/** Raw PAN entry. Puts the caller in PCI scope — prefer Token where possible. */
+/** Raw card-number entry — the number passes through your server; prefer Token where possible. */
 export interface Card {
   readonly kind: 'card';
   /** PAN -> PMT_NUMB */
