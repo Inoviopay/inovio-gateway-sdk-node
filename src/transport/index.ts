@@ -140,6 +140,8 @@ export interface TransportOptions {
   endpoint: string;
   httpClient: HttpClient;
   timeoutMs: number;
+  /** Extra headers — the token service authenticates via X-SIGNATURE/X-TIMESTAMP. */
+  headers?: Record<string, string>;
 }
 
 export async function send(
@@ -156,6 +158,7 @@ export async function send(
       {
         'Content-Type': 'application/x-www-form-urlencoded',
         Accept: 'application/json',
+        ...(opts.headers ?? {}),
       },
       opts.timeoutMs
     );

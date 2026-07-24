@@ -20,6 +20,9 @@ export type {
   RebillMode, RebillType, RiskOptions, AvsMode, CvvMode,
 } from './model/index.js';
 
+export { tokenizeCard, signTokenRequest, verifyTokenResponse, tokenTimestamp } from './tokenize.js';
+export type { TokenizeResult, TokenizeOptions, TokenizedCardInfo } from './tokenize.js';
+
 export { Refs } from './refs/index.js';
 export type {
   OrderRef, XtlOrderId, LineItemRef, TransactionId, ReqId, BatchId,

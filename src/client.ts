@@ -20,6 +20,7 @@ import { buildTransactionParams, type AuthorizeRequest, type CreditRequest, type
 import type { LineItemRef, OrderRef, XtlOrderId } from './refs/index.js';
 import { toOrderStatus, toTransactionResult } from './result/mapper.js';
 import type { HealthResult, OrderStatus, TransactionResult } from './result/index.js';
+import { tokenizeCard, type TokenizeResult } from './tokenize.js';
 import {
   ENDPOINTS,
   FetchHttpClient,
@@ -45,6 +46,11 @@ export interface ClientOptions {
   httpClient?: HttpClient;
   /** Token service endpoint (spec §4.8), if different from the default. */
   tokenEndpoint?: string;
+  /**
+   * Per-site HMAC secret for the token service (spec §4.8). Issued by Inovio
+   * support; distinct from the gateway password. Required only for tokenize().
+   */
+  siteKey?: string;
 }
 
 const DEFAULT_TIMEOUT_MS = 120_000;
@@ -56,6 +62,7 @@ export class InovioClient {
   private readonly apiVersion: string;
   private readonly timeoutMs: number;
   private readonly httpClient: HttpClient;
+  private readonly siteKey?: string;
 
   constructor(creds: Credentials, options: ClientOptions = {}) {
     if (!creds?.reqUsername || !creds?.reqPassword || !creds?.siteId) {
@@ -71,6 +78,7 @@ export class InovioClient {
     this.apiVersion = options.apiVersion ?? SPEC_API_VERSION;
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.httpClient = options.httpClient ?? new FetchHttpClient();
+    this.siteKey = options.siteKey;
   }
 
   /* ------------------------------------------------------------------ */
@@ -233,38 +241,34 @@ export class InovioClient {
   }
 
   /**
-   * Ephemeral tokenization (spec §4.8) — exchanges a PAN for a single-use
-   * TOKEN_GUID so the PAN does not have to be re-sent.
+   * Ephemeral tokenization (spec §4.8) — exchange a PAN for a single-use
+   * `TOKEN_GUID` usable in place of `PMT_NUMB`.
    *
-   * NOTE: this server-side call still touches the PAN and therefore keeps the
-   * caller in PCI scope. The lower-scope path is the browser Hosted Fields
-   * client (W-client), which tokenizes without the PAN reaching your server.
+   * Requires `siteKey`, the per-site HMAC secret issued by Inovio support. It
+   * is NOT the gateway password, and without it the token service answers
+   * error 121.
+   *
+   * NOTE: this is a server-side call — the PAN passes through your
+   * infrastructure, so you remain in PCI scope. The low-scope path is the
+   * browser Hosted Fields client, which tokenizes without the PAN reaching
+   * your server.
    */
-  async tokenize(card: Card): Promise<Token> {
-    const p = {
-      ...this.authParams('TOKENIZE'),
-      PMT_NUMB: card.number,
-      PMT_EXPIRY: card.expiry,
-      ...(card.cvv ? { PMT_KEY: card.cvv } : {}),
-    };
-    const raw = await send(
-      {
-        endpoint: this.tokenEndpoint,
-        httpClient: this.httpClient,
-        timeoutMs: this.timeoutMs,
-      },
-      p
-    );
-    this.raiseIfApiError(raw);
-    const guid = raw.TOKEN_GUID ?? raw.TOKEN ?? raw.TOKEN_ID;
-    if (!guid) {
-      throw new ConfigurationError(
-        'token service did not return a TOKEN_GUID',
-        undefined,
-        raw
+  async tokenize(card: Card, options: { uniqueId?: string } = {}): Promise<TokenizeResult> {
+    if (!this.siteKey) {
+      throw new ValidationError(
+        'tokenize requires `siteKey` in ClientOptions — the per-site HMAC secret ' +
+          'from Inovio support (not your gateway password).'
       );
     }
-    return PaymentMethods.token(guid);
+    return tokenizeCard(card, {
+      endpoint: this.tokenEndpoint,
+      httpClient: this.httpClient,
+      timeoutMs: this.timeoutMs,
+      siteId: this.creds.siteId,
+      siteKey: this.siteKey,
+      apiVersion: this.apiVersion,
+      uniqueId: options.uniqueId,
+    });
   }
 
   /** TESTAUTH — verify credentials. */

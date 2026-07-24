@@ -21,10 +21,21 @@ export interface Card {
   readonly cvv?: string;
 }
 
-/** Single-use ephemeral token from the token service. -> TOKEN_GUID */
+/**
+ * Single-use ephemeral token from the token service. -> TOKEN_GUID
+ *
+ * The token replaces ONLY the PAN. Per spec §4.8.2 a token-based transaction
+ * still carries PMT_EXPIRY and PMT_KEY, so those travel with the token —
+ * omitting the expiry yields API 110 "Required field" on REF_FIELD=pmt_expiry.
+ * Verified against the live T1 gateway.
+ */
 export interface Token {
   readonly kind: 'token';
   readonly guid: string;
+  /** MMYYYY -> PMT_EXPIRY. Required by the transaction service. */
+  readonly expiry?: string;
+  /** CVV2/CVC2 -> PMT_KEY. */
+  readonly cvv?: string;
 }
 
 /** A previously vaulted card. -> PMT_ID / PMT_ID_XTL (+ CUST_ID) */
@@ -113,9 +124,18 @@ export const PaymentMethods = {
     return { kind: 'card', number: number.replace(/[\s-]/g, ''), expiry, cvv };
   },
 
-  token(guid: string): Token {
+  /**
+   * @param expiry MMYYYY — required when the token is used for a transaction
+   *               (the token replaces the PAN only).
+   */
+  token(guid: string, expiry?: string, cvv?: string): Token {
     if (!guid) throw new TypeError('PaymentMethods.token: guid is required');
-    return { kind: 'token', guid };
+    if (expiry !== undefined && !/^\d{6}$/.test(expiry)) {
+      throw new TypeError(
+        `PaymentMethods.token: expiry must be MMYYYY (6 digits), got ${JSON.stringify(expiry)}`
+      );
+    }
+    return { kind: 'token', guid, expiry, cvv };
   },
 
   savedCard(ref: { pmtId?: string; pmtIdXtl?: string; custId?: string }): SavedCard {

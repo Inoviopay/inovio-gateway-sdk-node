@@ -115,7 +115,11 @@ export function buildTransactionParams(req: BaseTransactionRequest): Record<stri
       put(p, 'PMT_KEY', pm.cvv);
       break;
     case 'token':
+      // The token stands in for the PAN only — the transaction service still
+      // requires the expiry (and CVV where the processor asks for it).
       put(p, 'TOKEN_GUID', pm.guid);
+      put(p, 'PMT_EXPIRY', pm.expiry);
+      put(p, 'PMT_KEY', pm.cvv);
       break;
     case 'savedCard':
       put(p, 'PMT_ID', pm.pmtId);
