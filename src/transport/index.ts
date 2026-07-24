@@ -94,6 +94,18 @@ export function normalizeResponse(body: string): Record<string, string> {
     } catch (e) {
       throw new TransportError('gateway returned malformed JSON', e);
     }
+    // CCSTATUS answers with a COLUMNS/DATA table rather than flat fields.
+    // Flattening it would destroy the row structure, so hand it through
+    // untouched under a reserved key for the client to expand.
+    if (
+      parsed && typeof parsed === 'object' && !Array.isArray(parsed) &&
+      Array.isArray((parsed as Record<string, unknown>).COLUMNS) &&
+      Array.isArray((parsed as Record<string, unknown>).DATA)
+    ) {
+      out.__TABULAR__ = trimmed;
+      return out;
+    }
+
     const flatten = (obj: unknown, prefix = ''): void => {
       if (obj === null || obj === undefined) return;
       if (Array.isArray(obj)) {

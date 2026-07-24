@@ -39,6 +39,8 @@ class MockHttp {
       e.name = 'AbortError';
       throw e;
     }
+    // Fixtures carry either a flat field map or a CCSTATUS COLUMNS/DATA
+    // table; both are replayed verbatim as the gateway would send them.
     return { status: 200, body: JSON.stringify(this.response ?? {}) };
   }
 }

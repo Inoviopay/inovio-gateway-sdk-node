@@ -11,6 +11,7 @@ import {
   TRANSACTION_STATUS,
   type TransactionStatus,
 } from '../enums/generated.js';
+import { TransportError } from '../errors/index.js';
 import { Money } from '../model/money.js';
 import { Refs } from '../refs/index.js';
 import type { OrderStatus, Outcome, TransactionResult, NextAction, CardInfo } from './index.js';
@@ -179,17 +180,31 @@ export function toTransactionResult(r: Record<string, string>): TransactionResul
   };
 }
 
-/** Sum a set of decimal-string amounts without going through binary floats. */
+/**
+ * Sum decimal-string amounts without going through binary floats.
+ *
+ * Amounts may be NEGATIVE: the gateway reports credit legs (CCCREDIT) with a
+ * negative TRANS_VALUE, so a refund of 1.00 arrives as "-1". Confirmed against
+ * the live T1 gateway.
+ */
 function sumAmounts(values: string[], currency: string): Money {
-  // Scale to integer cents-equivalent using the max observed precision.
   const precision = values.reduce((m, v) => {
     const dot = v.indexOf('.');
     return Math.max(m, dot === -1 ? 0 : v.length - dot - 1);
   }, 0);
   const scale = 10 ** precision;
   const total = values.reduce((acc, v) => acc + Math.round(Number(v) * scale), 0);
-  const s = (total / scale).toFixed(precision);
-  return Money.of(s, currency);
+  return Money.of((total / scale).toFixed(precision), currency);
+}
+
+/** Negate a decimal string without float round-tripping. */
+function negate(v: string): string {
+  return v.startsWith('-') ? v.slice(1) : `-${v}`;
+}
+
+/** Absolute value of a decimal string, preserving its textual form. */
+function abs(v: string): string {
+  return v.startsWith('-') ? v.slice(1) : v;
 }
 
 /**
@@ -209,21 +224,66 @@ export function toOrderStatus(
   const amountsFor = (pred: (l: TransactionResult) => boolean): string[] =>
     legs.filter((l) => pred(l) && l.amount).map((l) => l.amount!.amount);
 
+  // Three distinct leg kinds — conflating void with refund gets the maths wrong.
+  //
+  //   CCAUTHORIZE / CCAUTHCAP : establishes the authorized amount
+  //   CCCAPTURE               : draws down against the authorization
+  //   CCCREDIT                : refunds a capture (money returned)
+  //   CCREVERSE / CCREVERSECAP: VOIDS — cancels an authorization or a capture.
+  //                             A void is not a refund: it releases the hold,
+  //                             so it must reduce `authorized`, not inflate
+  //                             `refunded`. Verified on the live T1 gateway,
+  //                             where a voided auth must settle to net 0 with
+  //                             nothing outstanding.
   const isAuth = (l: TransactionResult) => /AUTHORIZE|AUTHCAP/i.test(l.action);
-  const isCapture = (l: TransactionResult) => /CAPTURE/i.test(l.action) && !/REVERSECAP/i.test(l.action);
-  const isRefund = (l: TransactionResult) => /CREDIT|REVERSE/i.test(l.action);
+  // CCAUTHCAP authorizes AND captures in one leg, so it counts as both —
+  // otherwise a `sale()` reports captured=0 with the full amount outstanding,
+  // which is the opposite of what happened. Verified on the live T1 gateway.
+  const isCapture = (l: TransactionResult) =>
+    /CAPTURE|AUTHCAP/i.test(l.action) && !/REVERSECAP/i.test(l.action);
+  const isVoid = (l: TransactionResult) => /REVERSE/i.test(l.action);
+  const isRefund = (l: TransactionResult) => /CREDIT/i.test(l.action);
 
   const approved = (l: TransactionResult) => l.status === TRANSACTION_STATUS.APPROVED;
 
-  const authorized = sumAmounts(amountsFor((l) => isAuth(l) && approved(l)), currency);
+  const authorizedGross = sumAmounts(
+    amountsFor((l) => isAuth(l) && approved(l)),
+    currency
+  );
   const captured = sumAmounts(amountsFor((l) => isCapture(l) && approved(l)), currency);
-  const refunded = sumAmounts(amountsFor((l) => isRefund(l) && approved(l)), currency);
-  const net = sumAmounts([captured.amount, `-${refunded.amount}`], currency);
-  const outstanding = sumAmounts([authorized.amount, `-${captured.amount}`], currency);
+  // Credit and void legs both arrive with a negative TRANS_VALUE; take magnitudes.
+  const voided = sumAmounts(
+    amountsFor((l) => isVoid(l) && approved(l)).map(abs),
+    currency
+  );
+  const refunded = sumAmounts(
+    amountsFor((l) => isRefund(l) && approved(l)).map(abs),
+    currency
+  );
+
+  // A void releases the authorization rather than returning captured funds.
+  const authorized = sumAmounts(
+    [authorizedGross.amount, negate(voided.amount)],
+    currency
+  );
+  const net = sumAmounts([captured.amount, negate(refunded.amount)], currency);
+  const outstanding = sumAmounts(
+    [authorized.amount, negate(captured.amount)],
+    currency
+  );
+
+  // CCSTATUS answers with a COLUMNS/DATA table that carries no top-level
+  // PO_ID — the order id lives on each leg. Fall back to the legs so the
+  // aggregate is still keyed correctly.
+  const poId = r.PO_ID || legs.find((l) => l.orderRef)?.orderRef?.poId;
+  if (!poId) {
+    throw new TransportError('CCSTATUS response carried no PO_ID on any leg');
+  }
+  const xtl = r.XTL_ORDER_ID || legs.find((l) => l.xtlOrderRef)?.xtlOrderRef?.value;
 
   return {
-    ref: Refs.order(r.PO_ID ?? ''),
-    xtlRef: r.XTL_ORDER_ID ? Refs.xtlOrder(r.XTL_ORDER_ID) : undefined,
+    ref: Refs.order(poId),
+    xtlRef: xtl ? Refs.xtlOrder(xtl) : undefined,
     transactions: legs,
     authorized,
     captured,

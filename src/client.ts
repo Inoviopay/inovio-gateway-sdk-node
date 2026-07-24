@@ -294,28 +294,38 @@ export class InovioClient {
 }
 
 /**
- * CCSTATUS returns multiple transactions. The gateway flattens them with
- * indexed keys; split them back into per-leg field maps.
+ * CCSTATUS does not answer with flat fields like every other action — it
+ * returns a tabular payload:
+ *
+ *   { "COLUMNS": ["REQUEST_ACTION","TRANS_STATUS_NAME",...],
+ *     "DATA":    [ [ "CCAUTHORIZE","APPROVED",... ], [ "CCCAPTURE",... ] ] }
+ *
+ * One DATA row per leg against the order. Verified against the live T1
+ * gateway; the shape is not described in the v4.14 response-fields section.
  */
 function extractLegs(raw: Record<string, string>): Record<string, string>[] {
-  const indexed = new Map<number, Record<string, string>>();
-  for (const [k, v] of Object.entries(raw)) {
-    const m = /^(.*?)_(\d+)$/.exec(k);
-    if (!m) continue;
-    const [, base, idxStr] = m;
-    // only treat transaction-level fields as legs
-    if (!/^(TRANS_|REQUEST_ACTION|SERVICE_|PROCESSOR_|API_|AVS_|CVV_|PO_ID)/.test(base)) continue;
-    const idx = Number(idxStr);
-    if (!indexed.has(idx)) indexed.set(idx, {});
-    indexed.get(idx)![base] = v;
+  const tabular = raw.__TABULAR__;
+  if (!tabular) return [];
+  let parsed: { COLUMNS?: unknown; DATA?: unknown };
+  try {
+    parsed = JSON.parse(tabular);
+  } catch {
+    return [];
   }
-  // Order-level fields apply to every leg — notably CURR_CODE_ALPHA, without
-  // which a leg has no currency and its amount cannot be constructed.
-  const inherited: Record<string, string> = {};
-  for (const k of ['PO_ID', 'XTL_ORDER_ID', 'CURR_CODE_ALPHA', 'MERCH_ACCT_ID']) {
-    if (raw[k] !== undefined) inherited[k] = raw[k];
-  }
-  return [...indexed.entries()]
-    .sort((a, b) => a[0] - b[0])
-    .map(([, fields]) => ({ ...inherited, ...fields }));
+  const columns = parsed.COLUMNS;
+  const rows = parsed.DATA;
+  if (!Array.isArray(columns) || !Array.isArray(rows)) return [];
+
+  return rows.map((row) => {
+    const leg: Record<string, string> = {};
+    if (!Array.isArray(row)) return leg;
+    columns.forEach((col, i) => {
+      const name = String(col).toUpperCase();
+      const v = row[i];
+      // Duplicate column names appear (TRANS_ID twice); first non-empty wins.
+      if (v === null || v === undefined || v === '') return;
+      if (leg[name] === undefined) leg[name] = String(v);
+    });
+    return leg;
+  });
 }
